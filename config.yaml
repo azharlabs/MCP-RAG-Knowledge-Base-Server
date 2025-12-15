@@ -1,0 +1,27 @@
+dev:
+  model:
+    base_url: https://generativelanguage.googleapis.com/v1beta/openai/
+    name: gemini-2.5-flash
+  database:
+    type: sqlite
+    path: data/dev.db
+  qdrant:
+    type: local
+    path: data/qdrant
+  storage:
+    type: local
+    base_path: storage
+
+prod:
+  model:
+    base_url: https://generativelanguage.googleapis.com/v1beta/openai/
+    name: gemini-2.5-flash
+  database:
+    type: mongo
+    mongo_url: ${MONGO_URL}
+  qdrant:
+    type: remote
+    url: ${QDRANT_URL}
+  storage:
+    type: gcs
+    bucket: ${GCS_BUCKET_NAME}

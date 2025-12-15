@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+python-multipart
+qdrant-client
+openai
+pdfplumber
+pydantic
+pymongo
+google-cloud-storage
+motor
+python-dotenv
+fastmcp
+PyYAML
+aiosqlite
