@@ -207,6 +207,7 @@ class SQLiteDataStore:
                         chunk_size INTEGER NOT NULL,
                         overlap INTEGER NOT NULL,
                         top_k INTEGER NOT NULL,
+                        hyde_enabled INTEGER DEFAULT 0,
                         secure_enabled INTEGER DEFAULT 0,
                         credentials TEXT DEFAULT '[]',
                         api_key TEXT,
@@ -215,6 +216,7 @@ class SQLiteDataStore:
                     );
                     """
                 )
+                await self._ensure_column(conn, "assistants", "hyde_enabled", "INTEGER DEFAULT 0")
                 await self._ensure_column(conn, "assistants", "secure_enabled", "INTEGER DEFAULT 0")
                 await self._ensure_column(conn, "assistants", "credentials", "TEXT DEFAULT '[]'")
                 await self._ensure_column(conn, "assistants", "api_key", "TEXT")
@@ -257,12 +259,12 @@ class SQLiteDataStore:
             conn.row_factory = aiosqlite.Row
             if owner_id:
                 cursor = await conn.execute(
-                    "SELECT id, name, system_prompt, chunk_size, overlap, top_k, secure_enabled, credentials, api_key, owner_id FROM assistants WHERE owner_id=? LIMIT ?",
+                    "SELECT id, name, system_prompt, chunk_size, overlap, top_k, hyde_enabled, secure_enabled, credentials, api_key, owner_id FROM assistants WHERE owner_id=? LIMIT ?",
                     (owner_id, limit),
                 )
             else:
                 cursor = await conn.execute(
-                    "SELECT id, name, system_prompt, chunk_size, overlap, top_k, secure_enabled, credentials, api_key, owner_id FROM assistants LIMIT ?",
+                    "SELECT id, name, system_prompt, chunk_size, overlap, top_k, hyde_enabled, secure_enabled, credentials, api_key, owner_id FROM assistants LIMIT ?",
                     (limit,),
                 )
             rows = await cursor.fetchall()
@@ -273,7 +275,7 @@ class SQLiteDataStore:
         async with aiosqlite.connect(self.db_path) as conn:
             conn.row_factory = aiosqlite.Row
             cursor = await conn.execute(
-                "SELECT id, name, system_prompt, chunk_size, overlap, top_k, secure_enabled, credentials, api_key, owner_id FROM assistants WHERE id=?",
+                "SELECT id, name, system_prompt, chunk_size, overlap, top_k, hyde_enabled, secure_enabled, credentials, api_key, owner_id FROM assistants WHERE id=?",
                 (assistant_id,),
             )
             row = await cursor.fetchone()
@@ -285,8 +287,8 @@ class SQLiteDataStore:
         async with aiosqlite.connect(self.db_path) as conn:
             await conn.execute(
                 """
-                INSERT INTO assistants (id, name, system_prompt, chunk_size, overlap, top_k, secure_enabled, credentials, api_key, owner_id, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO assistants (id, name, system_prompt, chunk_size, overlap, top_k, hyde_enabled, secure_enabled, credentials, api_key, owner_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     ast_id,
@@ -295,6 +297,7 @@ class SQLiteDataStore:
                     config.chunk_size,
                     config.overlap,
                     config.top_k,
+                    1 if getattr(config, "hyde_enabled", False) else 0,
                     1 if config.secure_enabled else 0,
                     json.dumps(config.credentials or []),
                     config.api_key,
@@ -310,7 +313,7 @@ class SQLiteDataStore:
         async with aiosqlite.connect(self.db_path) as conn:
             await conn.execute(
                 """
-                UPDATE assistants SET name=?, system_prompt=?, chunk_size=?, overlap=?, top_k=?, secure_enabled=?, credentials=?, api_key=?, owner_id=? WHERE id=?
+                UPDATE assistants SET name=?, system_prompt=?, chunk_size=?, overlap=?, top_k=?, hyde_enabled=?, secure_enabled=?, credentials=?, api_key=?, owner_id=? WHERE id=?
                 """,
                 (
                     config.name,
@@ -318,6 +321,7 @@ class SQLiteDataStore:
                     config.chunk_size,
                     config.overlap,
                     config.top_k,
+                    1 if getattr(config, "hyde_enabled", False) else 0,
                     1 if config.secure_enabled else 0,
                     json.dumps(config.credentials or []),
                     config.api_key,
@@ -465,6 +469,7 @@ class SQLiteDataStore:
 
     def _deserialize_assistant_row(self, row: aiosqlite.Row):
         data = dict(row)
+        data["hyde_enabled"] = bool(data.get("hyde_enabled"))
         data["secure_enabled"] = bool(data.get("secure_enabled"))
         creds_raw = data.get("credentials") or "[]"
         try:
@@ -492,6 +497,9 @@ async def ensure_assistant_defaults(ast: dict, store) -> dict:
     if ast is None:
         return ast
     changed = False
+    if "hyde_enabled" not in ast:
+        ast["hyde_enabled"] = False
+        changed = True
     if "secure_enabled" not in ast:
         ast["secure_enabled"] = False
         changed = True
@@ -564,6 +572,7 @@ class KnowledgeBaseConfig(BaseModel):
     chunk_size: int = 1000
     overlap: int = 200
     top_k: int = 5
+    hyde_enabled: bool = False
     secure_enabled: bool = False
     credentials: Optional[List[Dict[str, str]]] = None  # list of {"email","password"}
     api_key: Optional[str] = None
@@ -903,7 +912,25 @@ async def chat_with_assistant_with_history(
     if not is_authorized(ast, email, password, api_key, owner_override):
         raise ValueError("Unauthorized for this knowledge base")
 
-    q_vec = get_embedding(query)
+    embedding_source = query
+    if ast.get("hyde_enabled"):
+        try:
+            hyde_prompt = [
+                {
+                    "role": "system",
+                    "content": "Generate a concise hypothetical answer to the user's question to improve document retrieval. Keep it factual and under 120 words."
+                },
+                {"role": "user", "content": query},
+            ]
+            hyde_resp = client.chat.completions.create(model=MODEL_NAME, messages=hyde_prompt)
+            hyp = hyde_resp.choices[0].message.content
+            if hyp:
+                embedding_source = hyp
+        except Exception as exc:  # best-effort; fall back to direct query embedding
+            print(f"HyDE generation failed: {exc}")
+            embedding_source = query
+
+    q_vec = get_embedding(embedding_source)
     search = qdrant.search(
         collection_name=COLLECTION_NAME,
         query_vector=q_vec,
@@ -948,6 +975,7 @@ async def duplicate_assistant_logic(assistant_id: str, new_name: Optional[str] =
         chunk_size=ast.get("chunk_size", 1000),
         overlap=ast.get("overlap", 200),
         top_k=ast.get("top_k", 5),
+        hyde_enabled=ast.get("hyde_enabled", False),
         secure_enabled=ast.get("secure_enabled", False),
         credentials=ast.get("credentials", []),
         owner_id=ast.get("owner_id"),
