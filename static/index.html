@@ -606,8 +606,8 @@ Rules:
             return (
                 <div className="flex h-[calc(100vh-73px)] overflow-hidden">
                     {/* Sidebar Config */}
-                    <div className="w-80 bg-white border-r border-gray-200 flex flex-col overflow-y-auto">
-                        <div className="p-4 border-b border-gray-200">
+                    <div className="w-80 bg-white border-r border-gray-200 flex flex-col h-full overflow-hidden">
+                        <div className="p-4 border-b border-gray-200 sticky top-0 bg-white z-10">
                             <button onClick={onBack} className="text-gray-500 hover:text-blue-600 flex items-center gap-2 mb-4 text-sm font-medium">
                                 <Icon name="arrow-left" size={16} /> Back to Dashboard
                             </button>
@@ -617,7 +617,7 @@ Rules:
                             </div>
                             {error && <div className="mt-3 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs">{error}</div>}
                         </div>
-                        <div className="p-6 space-y-6">
+                        <div className="flex-1 overflow-y-auto p-6 space-y-6">
                             <div>
                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Name</label>
                                 <input className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
@@ -721,16 +721,17 @@ Rules:
                                             Copy
                                         </button>
                                     </div>
-	                                    <button
-	                                        onClick={() => window.open(`/static/chat.html?knowledgeBaseId=${config.id}`, '_blank')}
-	                                        className="w-full bg-white border border-blue-300 text-blue-700 py-2 rounded-lg text-xs font-medium hover:bg-blue-100 transition-colors flex items-center justify-center gap-2"
-	                                    >
+                                    <button
+                                        onClick={() => window.open(`/static/chat.html?knowledgeBaseId=${config.id}`, '_blank')}
+                                        className="w-full bg-white border border-blue-300 text-blue-700 py-2 rounded-lg text-xs font-medium hover:bg-blue-100 transition-colors flex items-center justify-center gap-2"
+                                    >
                                         <Icon name="external-link" size={14} />
                                         Open Chat Page
                                     </button>
                                 </div>
                             )}
-
+                        </div>
+                        <div className="p-4 border-t border-gray-200 bg-white sticky bottom-0">
                             <button onClick={saveConfig} className="w-full bg-gray-900 text-white py-3 rounded-xl flex justify-center items-center gap-2 hover:bg-black transition-colors">
                                 <Icon name="save" size={18} /> Save Config
                             </button>
