@@ -208,6 +208,9 @@ class SQLiteDataStore:
                         overlap INTEGER NOT NULL,
                         top_k INTEGER NOT NULL,
                         hyde_enabled INTEGER DEFAULT 0,
+                        reranker_enabled INTEGER DEFAULT 0,
+                        reranker_model TEXT,
+                        reranker_top_n INTEGER DEFAULT 3,
                         secure_enabled INTEGER DEFAULT 0,
                         credentials TEXT DEFAULT '[]',
                         api_key TEXT,
@@ -217,6 +220,9 @@ class SQLiteDataStore:
                     """
                 )
                 await self._ensure_column(conn, "assistants", "hyde_enabled", "INTEGER DEFAULT 0")
+                await self._ensure_column(conn, "assistants", "reranker_enabled", "INTEGER DEFAULT 0")
+                await self._ensure_column(conn, "assistants", "reranker_model", "TEXT")
+                await self._ensure_column(conn, "assistants", "reranker_top_n", "INTEGER DEFAULT 3")
                 await self._ensure_column(conn, "assistants", "secure_enabled", "INTEGER DEFAULT 0")
                 await self._ensure_column(conn, "assistants", "credentials", "TEXT DEFAULT '[]'")
                 await self._ensure_column(conn, "assistants", "api_key", "TEXT")
@@ -259,12 +265,12 @@ class SQLiteDataStore:
             conn.row_factory = aiosqlite.Row
             if owner_id:
                 cursor = await conn.execute(
-                    "SELECT id, name, system_prompt, chunk_size, overlap, top_k, hyde_enabled, secure_enabled, credentials, api_key, owner_id FROM assistants WHERE owner_id=? LIMIT ?",
+                    "SELECT id, name, system_prompt, chunk_size, overlap, top_k, hyde_enabled, reranker_enabled, reranker_model, reranker_top_n, secure_enabled, credentials, api_key, owner_id FROM assistants WHERE owner_id=? LIMIT ?",
                     (owner_id, limit),
                 )
             else:
                 cursor = await conn.execute(
-                    "SELECT id, name, system_prompt, chunk_size, overlap, top_k, hyde_enabled, secure_enabled, credentials, api_key, owner_id FROM assistants LIMIT ?",
+                    "SELECT id, name, system_prompt, chunk_size, overlap, top_k, hyde_enabled, reranker_enabled, reranker_model, reranker_top_n, secure_enabled, credentials, api_key, owner_id FROM assistants LIMIT ?",
                     (limit,),
                 )
             rows = await cursor.fetchall()
@@ -275,7 +281,7 @@ class SQLiteDataStore:
         async with aiosqlite.connect(self.db_path) as conn:
             conn.row_factory = aiosqlite.Row
             cursor = await conn.execute(
-                "SELECT id, name, system_prompt, chunk_size, overlap, top_k, hyde_enabled, secure_enabled, credentials, api_key, owner_id FROM assistants WHERE id=?",
+                "SELECT id, name, system_prompt, chunk_size, overlap, top_k, hyde_enabled, reranker_enabled, reranker_model, reranker_top_n, secure_enabled, credentials, api_key, owner_id FROM assistants WHERE id=?",
                 (assistant_id,),
             )
             row = await cursor.fetchone()
@@ -287,8 +293,8 @@ class SQLiteDataStore:
         async with aiosqlite.connect(self.db_path) as conn:
             await conn.execute(
                 """
-                INSERT INTO assistants (id, name, system_prompt, chunk_size, overlap, top_k, hyde_enabled, secure_enabled, credentials, api_key, owner_id, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO assistants (id, name, system_prompt, chunk_size, overlap, top_k, hyde_enabled, reranker_enabled, reranker_model, reranker_top_n, secure_enabled, credentials, api_key, owner_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     ast_id,
@@ -298,6 +304,9 @@ class SQLiteDataStore:
                     config.overlap,
                     config.top_k,
                     1 if getattr(config, "hyde_enabled", False) else 0,
+                    1 if getattr(config, "reranker_enabled", False) else 0,
+                    config.reranker_model,
+                    config.reranker_top_n,
                     1 if config.secure_enabled else 0,
                     json.dumps(config.credentials or []),
                     config.api_key,
@@ -313,7 +322,7 @@ class SQLiteDataStore:
         async with aiosqlite.connect(self.db_path) as conn:
             await conn.execute(
                 """
-                UPDATE assistants SET name=?, system_prompt=?, chunk_size=?, overlap=?, top_k=?, hyde_enabled=?, secure_enabled=?, credentials=?, api_key=?, owner_id=? WHERE id=?
+                UPDATE assistants SET name=?, system_prompt=?, chunk_size=?, overlap=?, top_k=?, hyde_enabled=?, reranker_enabled=?, reranker_model=?, reranker_top_n=?, secure_enabled=?, credentials=?, api_key=?, owner_id=? WHERE id=?
                 """,
                 (
                     config.name,
@@ -322,6 +331,9 @@ class SQLiteDataStore:
                     config.overlap,
                     config.top_k,
                     1 if getattr(config, "hyde_enabled", False) else 0,
+                    1 if getattr(config, "reranker_enabled", False) else 0,
+                    config.reranker_model,
+                    config.reranker_top_n,
                     1 if config.secure_enabled else 0,
                     json.dumps(config.credentials or []),
                     config.api_key,
@@ -470,6 +482,11 @@ class SQLiteDataStore:
     def _deserialize_assistant_row(self, row: aiosqlite.Row):
         data = dict(row)
         data["hyde_enabled"] = bool(data.get("hyde_enabled"))
+        data["reranker_enabled"] = bool(data.get("reranker_enabled"))
+        try:
+            data["reranker_top_n"] = int(data.get("reranker_top_n"))
+        except Exception:
+            data["reranker_top_n"] = 3
         data["secure_enabled"] = bool(data.get("secure_enabled"))
         creds_raw = data.get("credentials") or "[]"
         try:
@@ -500,6 +517,14 @@ async def ensure_assistant_defaults(ast: dict, store) -> dict:
     if "hyde_enabled" not in ast:
         ast["hyde_enabled"] = False
         changed = True
+    if "reranker_enabled" not in ast:
+        ast["reranker_enabled"] = False
+        changed = True
+    if "reranker_top_n" not in ast or ast.get("reranker_top_n") is None:
+        ast["reranker_top_n"] = 3
+        changed = True
+    if "reranker_model" not in ast:
+        ast["reranker_model"] = None
     if "secure_enabled" not in ast:
         ast["secure_enabled"] = False
         changed = True
@@ -573,6 +598,9 @@ class KnowledgeBaseConfig(BaseModel):
     overlap: int = 200
     top_k: int = 5
     hyde_enabled: bool = False
+    reranker_enabled: bool = False
+    reranker_model: Optional[str] = None
+    reranker_top_n: int = 3
     secure_enabled: bool = False
     credentials: Optional[List[Dict[str, str]]] = None  # list of {"email","password"}
     api_key: Optional[str] = None
@@ -931,22 +959,61 @@ async def chat_with_assistant_with_history(
             embedding_source = query
 
     q_vec = get_embedding(embedding_source)
+    search_limit = ast.get("top_k", 5)
+    try:
+        if ast.get("reranker_enabled"):
+            desired = int(ast.get("reranker_top_n", 3) or 3)
+            search_limit = max(search_limit, desired)
+    except Exception:
+        pass
     search = qdrant.search(
         collection_name=COLLECTION_NAME,
         query_vector=q_vec,
         query_filter=models.Filter(must=[models.FieldCondition(key="assistant_id", match=models.MatchValue(value=assistant_id))]),
-        limit=ast.get("top_k", 5)
+        limit=search_limit
     )
 
-    context = "\n".join([h.payload["text"] for h in search])
-    sources = list(set([h.payload["filename"] for h in search]))
+    hits = list(search)
+    rerank_scores = {}
+
+    if ast.get("reranker_enabled") and hits:
+        rerank_model = ast.get("reranker_model") or MODEL_NAME
+        desired_n = int(ast.get("reranker_top_n", 3) or 3)
+        reranked = []
+        for h in hits:
+            passage = h.payload.get("text", "")
+            try:
+                rerank_prompt = [
+                    {
+                        "role": "system",
+                        "content": "Score passage relevance to the query from 0 to 1. Respond with a single number only."
+                    },
+                    {
+                        "role": "user",
+                        "content": f"Query: {query}\n\nPassage:\n{passage}"
+                    },
+                ]
+                resp = client.chat.completions.create(model=rerank_model, messages=rerank_prompt)
+                raw = resp.choices[0].message.content.strip()
+                score = float(raw.split()[0])
+            except Exception as exc:
+                print(f"Reranker scoring failed: {exc}")
+                score = h.score or 0.0
+            reranked.append((score, h))
+            rerank_scores[str(h.id)] = score
+
+        reranked.sort(key=lambda x: x[0], reverse=True)
+        hits = [h for _, h in reranked[:max(1, desired_n)]]
+
+    context = "\n".join([h.payload["text"] for h in hits])
+    sources = list(set([h.payload["filename"] for h in hits]))
     contexts = [
         {
             "text": h.payload["text"],
             "filename": h.payload.get("filename", ""),
-            "score": h.score
+            "score": rerank_scores.get(str(h.id), h.score)
         }
-        for h in search
+        for h in hits
     ]
 
     msgs = [{"role": "system", "content": ast["system_prompt"]}]
@@ -976,6 +1043,9 @@ async def duplicate_assistant_logic(assistant_id: str, new_name: Optional[str] =
         overlap=ast.get("overlap", 200),
         top_k=ast.get("top_k", 5),
         hyde_enabled=ast.get("hyde_enabled", False),
+        reranker_enabled=ast.get("reranker_enabled", False),
+        reranker_model=ast.get("reranker_model"),
+        reranker_top_n=ast.get("reranker_top_n", 3),
         secure_enabled=ast.get("secure_enabled", False),
         credentials=ast.get("credentials", []),
         owner_id=ast.get("owner_id"),

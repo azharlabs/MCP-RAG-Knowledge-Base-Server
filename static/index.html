@@ -396,6 +396,9 @@ Rules:
                     overlap: base.overlap || 200,
                     top_k: base.top_k || 5,
                     hyde_enabled: base.hyde_enabled ?? false,
+                    reranker_enabled: base.reranker_enabled ?? false,
+                    reranker_model: base.reranker_model || "",
+                    reranker_top_n: base.reranker_top_n ?? 3,
                     id: base.id,
                     secure_enabled: base.secure_enabled ?? false,
                     credentials: base.credentials || [],
@@ -658,6 +661,44 @@ Rules:
                                         <p className="text-xs text-gray-500">Use a hypothetical answer from the LLM to drive embeddings and improve recall.</p>
                                     </div>
                                 </label>
+                            </div>
+                            <div className="p-4 border border-gray-200 rounded-lg bg-gray-50 space-y-3">
+                                <label className="flex items-start gap-3 text-sm font-medium text-gray-800">
+                                    <input
+                                        type="checkbox"
+                                        className="mt-1"
+                                        checked={!!config.reranker_enabled}
+                                        onChange={e => setConfig({ ...config, reranker_enabled: e.target.checked })}
+                                    />
+                                    <div>
+                                        <div>Reranker</div>
+                                        <p className="text-xs text-gray-500">Re-rank retrieved chunks with a model and keep only the top matches.</p>
+                                    </div>
+                                </label>
+                                {config.reranker_enabled && (
+                                    <div className="space-y-3">
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Reranker Model</label>
+                                            <input
+                                                className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                value={config.reranker_model}
+                                                onChange={e => setConfig({ ...config, reranker_model: e.target.value })}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Keep Top Relevant</label>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                max="50"
+                                                className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                                                value={config.reranker_top_n}
+                                                onChange={e => setConfig({ ...config, reranker_top_n: Math.max(1, parseInt(e.target.value) || 1) })}
+                                            />
+                                            <p className="text-[11px] text-gray-500 mt-1">Number of top-ranked chunks to pass to the final answer.</p>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                             <div className="p-4 border border-gray-200 rounded-lg bg-gray-50 space-y-3">
                                 <div className="flex items-center justify-between">
