@@ -190,7 +190,18 @@
             const [apiKey, setApiKey] = useState(localStorage.getItem(storageKey) || "");
             const [userEmail, setUserEmail] = useState(localStorage.getItem(storageEmailKey) || "");
             const [metrics, setMetrics] = useState(null);
-            const supportedFormats = ['PDF', 'Plain text', 'Markdown', 'HTML', 'CSV', 'JSON', 'Word (.docx)', 'PowerPoint'];
+            const supportedFormats = [
+                'PDF',
+                'Plain text',
+                'Markdown',
+                'HTML',
+                'CSV',
+                'JSON',
+                'Word (.docx)',
+                'Word (.doc)',
+                'PowerPoint (.pptx)',
+                'PowerPoint (.ppt)'
+            ];
             const [notification, setNotification] = useState(null);
             const [confirmDialog, setConfirmDialog] = useState(null);
             const [promptDialog, setPromptDialog] = useState(null);

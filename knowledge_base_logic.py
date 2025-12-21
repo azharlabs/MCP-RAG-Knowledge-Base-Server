@@ -20,7 +20,7 @@ from qdrant_client import QdrantClient
 from qdrant_client.http import models
 
 from config_loader import load_config
-from embedanything import EmbedAnything
+from embed_anything import EmbedAnything
 
 # Load environment variables from .env file
 load_dotenv()
