@@ -20,6 +20,7 @@ from qdrant_client import QdrantClient
 from qdrant_client.http import models
 
 from config_loader import load_config
+from embed_anything import EmbedAnything
 
 # Load environment variables from .env file
 load_dotenv()
@@ -37,6 +38,9 @@ if not MODEL_API_KEY:
     raise RuntimeError("Missing MODEL_API_KEY in environment/.env")
 
 client = OpenAI(api_key=MODEL_API_KEY, base_url=MODEL_BASE_URL)
+
+EMBEDDING_DIMENSIONS = 768
+embed_extractor = EmbedAnything()
 
 # --- Storage Settings ---
 STORAGE_CONFIG = CONFIG.get("storage", {})
@@ -528,6 +532,9 @@ async def ensure_assistant_defaults(ast: dict, store) -> dict:
     if "secure_enabled" not in ast:
         ast["secure_enabled"] = False
         changed = True
+    if not ast.get("embedding_dimensions"):
+        ast["embedding_dimensions"] = EMBEDDING_DIMENSIONS
+        changed = True
     if ast.get("credentials") is None:
         ast["credentials"] = []
     if not ast.get("api_key"):
@@ -585,7 +592,7 @@ COLLECTION_NAME = "enterprise_rag"
 if not qdrant.collection_exists(COLLECTION_NAME):
     qdrant.create_collection(
         collection_name=COLLECTION_NAME,
-        vectors_config=models.VectorParams(size=768, distance=models.Distance.COSINE)
+        vectors_config=models.VectorParams(size=EMBEDDING_DIMENSIONS, distance=models.Distance.COSINE)
     )
 
 
@@ -596,6 +603,7 @@ class KnowledgeBaseConfig(BaseModel):
     system_prompt: str
     chunk_size: int = 1000
     overlap: int = 200
+    embedding_dimensions: int = EMBEDDING_DIMENSIONS
     top_k: int = 5
     hyde_enabled: bool = False
     reranker_enabled: bool = False
@@ -673,6 +681,10 @@ def store_file(temp_path: str, assistant_id: str, filename: str) -> str:
     dest_path = dest_dir / filename
     shutil.copy(temp_path, dest_path)
     return str(dest_path)
+
+
+def extract_text_with_embedanything(file_path: str) -> str:
+    return embed_extractor.extract_text(file_path)
 
 
 # --- Logic ---
@@ -769,6 +781,9 @@ async def create_assistant_logic(config: KnowledgeBaseConfig, owner_id: str) -> 
         config.api_key = generate_api_key()
     if config.credentials is None:
         config.credentials = []
+    config.embedding_dimensions = config.embedding_dimensions or EMBEDDING_DIMENSIONS
+    if config.embedding_dimensions != EMBEDDING_DIMENSIONS:
+        config.embedding_dimensions = EMBEDDING_DIMENSIONS
     return await datastore.create_assistant(config)
 
 
@@ -780,6 +795,9 @@ async def update_assistant_logic(config: KnowledgeBaseConfig, owner_id: str):
         raise ValueError("Knowledge base not found")
     if existing.get("owner_id") != owner_id:
         raise ValueError("Not permitted to update this knowledge base")
+    if existing.get("embedding_dimensions") and config.embedding_dimensions != existing.get("embedding_dimensions"):
+        raise ValueError("Embedding dimensions cannot be changed after creation.")
+    config.embedding_dimensions = existing.get("embedding_dimensions") or EMBEDDING_DIMENSIONS
     config.owner_id = owner_id
     if not config.api_key:
         config.api_key = existing.get("api_key") or generate_api_key()
@@ -1041,6 +1059,7 @@ async def duplicate_assistant_logic(assistant_id: str, new_name: Optional[str] =
         system_prompt=ast["system_prompt"],
         chunk_size=ast.get("chunk_size", 1000),
         overlap=ast.get("overlap", 200),
+        embedding_dimensions=ast.get("embedding_dimensions", EMBEDDING_DIMENSIONS),
         top_k=ast.get("top_k", 5),
         hyde_enabled=ast.get("hyde_enabled", False),
         reranker_enabled=ast.get("reranker_enabled", False),
