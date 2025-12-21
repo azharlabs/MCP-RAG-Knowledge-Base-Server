@@ -1,8 +1,7 @@
 import os
 import shutil
+from pathlib import Path
 from uuid import uuid4
-
-import pdfplumber
 from fastapi import FastAPI, File, HTTPException, UploadFile, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -32,7 +31,8 @@ from knowledge_base_logic import (
     update_knowledge_base_document_text,
     get_user_by_api_key,
     get_dashboard_metrics,
-    get_user_by_id
+    get_user_by_id,
+    extract_text_with_embedanything,
 )
 
 from mcp_server import server as mcp_server
@@ -189,15 +189,18 @@ async def delete_knowledge_base(knowledge_base_id: str, request: Request):
 @app.post("/api/knowledge-base/{knowledge_base_id}/upload")
 async def upload_file_to_knowledge_base(knowledge_base_id: str, request: Request, file: UploadFile = File(...)):
     user = await require_user(request)
-    temp_name = f"temp_{uuid4()}.pdf"
+    file_extension = Path(file.filename).suffix or ".dat"
+    temp_name = f"temp_{uuid4()}{file_extension}"
     with open(temp_name, "wb") as f:
         shutil.copyfileobj(file.file, f)
-    file_location = store_file(temp_name, knowledge_base_id, file.filename)
 
-    text = ""
-    with pdfplumber.open(temp_name) as pdf:
-        for p in pdf.pages:
-            text += (p.extract_text() or "") + "\n"
+    try:
+        text = extract_text_with_embedanything(temp_name)
+    except Exception as exc:
+        os.remove(temp_name)
+        raise HTTPException(status_code=400, detail=f"Failed to extract text: {exc}")
+
+    file_location = store_file(temp_name, knowledge_base_id, file.filename)
     os.remove(temp_name)
 
     doc_id = await add_text_to_knowledge_base(
