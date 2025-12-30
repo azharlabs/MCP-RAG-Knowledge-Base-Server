@@ -958,10 +958,10 @@ Rules:
                                     <div className="flex justify-between items-center mb-6">
                                         <h2 className="text-2xl font-bold text-gray-900">Knowledge Base</h2>
                                         <span className="text-xs text-gray-500 bg-gray-100 rounded px-2 py-1">{config.id ? `Knowledge Base ID: ${config.id}` : "Save knowledge base to generate ID"}</span>
-                                        <label className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg cursor-pointer flex items-center gap-2 transition-all shadow-sm">
+                                        <label className={`bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-all shadow-sm ${(!config.id || loading) ? 'opacity-60 cursor-not-allowed' : 'hover:bg-blue-700 cursor-pointer'}`}>
                                     <Icon name="upload-cloud" size={18} />
                                     {loading ? "Processing..." : "Upload Document"}
-                                    <input type="file" className="hidden" accept={acceptedFileTypes} onChange={uploadFile} disabled={loading} />
+                                    <input type="file" className="hidden" accept={acceptedFileTypes} onChange={uploadFile} disabled={loading || !config.id} />
                                 </label>
                                     </div>
                                     <p className="text-xs text-gray-500 mb-4">Supported formats: {supportedFormats.join(', ')}. Max size: {maxUploadMb} MB.</p>
