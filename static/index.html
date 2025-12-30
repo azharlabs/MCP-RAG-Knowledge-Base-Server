@@ -191,17 +191,17 @@
             const [userEmail, setUserEmail] = useState(localStorage.getItem(storageEmailKey) || "");
             const [metrics, setMetrics] = useState(null);
             const supportedFormats = [
-                'PDF',
-                'Plain text',
-                'Markdown',
-                'HTML',
-                'CSV',
-                'JSON',
+                'PDF (.pdf)',
                 'Word (.docx)',
-                'Word (.doc)',
                 'PowerPoint (.pptx)',
-                'PowerPoint (.ppt)'
+                'Excel (.xlsx)',
+                'Markdown (.md)',
+                'Text (.txt)',
+                'HTML (.html)',
+                'CSV (.csv)',
+                'JSON (.json)'
             ];
+            const maxUploadMb = 2;
             const [notification, setNotification] = useState(null);
             const [confirmDialog, setConfirmDialog] = useState(null);
             const [promptDialog, setPromptDialog] = useState(null);
@@ -387,6 +387,7 @@ Rules:
                             notify={showNotification}
                             confirmAction={requestConfirm}
                             supportedFormats={supportedFormats}
+                            maxUploadMb={maxUploadMb}
                         />
                     )}
                     <NotificationPopup data={notification} onClose={() => setNotification(null)} />
@@ -507,7 +508,7 @@ Rules:
 
         // --- INGEST SCREEN COMPONENT ---
 
-        const IngestScreen = ({ knowledgeBase, onBack, refreshKnowledgeBases, apiKey, notify, confirmAction, supportedFormats }) => {
+        const IngestScreen = ({ knowledgeBase, onBack, refreshKnowledgeBases, apiKey, notify, confirmAction, supportedFormats, maxUploadMb }) => {
             const buildDefaultConfig = (baseKnowledgeBase = null) => {
                 const base = baseKnowledgeBase || knowledgeBase || {};
                 const default_system_prompt = `You are a Retrieval-Augmented Generation (RAG) assistant.
@@ -553,7 +554,8 @@ Rules:
             const [showCredentialModal, setShowCredentialModal] = useState(false);
             const [credentialPage, setCredentialPage] = useState(0);
             const credentialsPerPage = 5;
-            const acceptedFileTypes = '.pdf,.txt,.md,.html,.htm,.csv,.json,.doc,.docx,.ppt,.pptx';
+            const acceptedFileTypes = '.pdf,.docx,.pptx,.xlsx,.md,.txt,.html,.htm,.csv,.json';
+            const embeddingDimensionOptions = [768];
 
             // Editor State
             const [editorOpen, setEditorOpen] = useState(false);
@@ -626,6 +628,11 @@ Rules:
                         }
                         const file = e.target.files[0];
                         if (!file) return;
+                        if (file.size > maxUploadMb * 1024 * 1024) {
+                            notify("File too large", `Max size is ${maxUploadMb} MB.`, "warning");
+                            e.target.value = "";
+                            return;
+                        }
 
                 setLoading(true);
                 setUploadMessage("Uploading and indexing...");
@@ -797,13 +804,16 @@ Rules:
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Embedding Dimensions</label>
-                                <input
-                                    type="number"
+                                <select
                                     className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm disabled:opacity-70"
-                                    value={config.embedding_dimensions}
+                                    value={config.embedding_dimensions || embeddingDimensionOptions[0]}
                                     disabled={!!config.id}
-                                    onChange={e => setConfig({ ...config, embedding_dimensions: parseInt(e.target.value) || 0 })}
-                                />
+                                    onChange={e => setConfig({ ...config, embedding_dimensions: parseInt(e.target.value) || embeddingDimensionOptions[0] })}
+                                >
+                                    {embeddingDimensionOptions.map((dimension) => (
+                                        <option key={dimension} value={dimension}>{dimension}</option>
+                                    ))}
+                                </select>
                                 <p className="text-[11px] text-gray-500 mt-1">Gemini embeddings return 768 dimensions. This value locks after the first save.</p>
                             </div>
                             <div>
@@ -954,7 +964,7 @@ Rules:
                                     <input type="file" className="hidden" accept={acceptedFileTypes} onChange={uploadFile} disabled={loading} />
                                 </label>
                                     </div>
-                                    <p className="text-xs text-gray-500 mb-4">Supported formats: {supportedFormats.join(', ')}</p>
+                                    <p className="text-xs text-gray-500 mb-4">Supported formats: {supportedFormats.join(', ')}. Max size: {maxUploadMb} MB.</p>
                             {error && <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-4 py-3">{error}</div>}
                             {uploadMessage && <div className="mb-4 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-3">{uploadMessage}</div>}
 

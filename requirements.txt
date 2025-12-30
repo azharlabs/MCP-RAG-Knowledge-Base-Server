@@ -3,7 +3,6 @@ uvicorn
 python-multipart
 qdrant-client
 openai
-pdfplumber
 pydantic
 pymongo
 google-cloud-storage
@@ -12,4 +11,4 @@ python-dotenv
 fastmcp
 PyYAML
 aiosqlite
-embed-anything
+markitdown[all]

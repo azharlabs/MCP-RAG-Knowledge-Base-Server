@@ -20,7 +20,7 @@ from qdrant_client import QdrantClient
 from qdrant_client.http import models
 
 from config_loader import load_config
-from embed_anything import EmbedAnything
+from extractanything import ExtractAnything
 
 # Load environment variables from .env file
 load_dotenv()
@@ -40,7 +40,7 @@ if not MODEL_API_KEY:
 client = OpenAI(api_key=MODEL_API_KEY, base_url=MODEL_BASE_URL)
 
 EMBEDDING_DIMENSIONS = 768
-embed_extractor = EmbedAnything()
+extract_extractor = ExtractAnything()
 
 # --- Storage Settings ---
 STORAGE_CONFIG = CONFIG.get("storage", {})
@@ -298,7 +298,7 @@ class SQLiteDataStore:
             await conn.execute(
                 """
                 INSERT INTO assistants (id, name, system_prompt, chunk_size, overlap, top_k, hyde_enabled, reranker_enabled, reranker_model, reranker_top_n, secure_enabled, credentials, api_key, owner_id, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     ast_id,
@@ -683,8 +683,8 @@ def store_file(temp_path: str, assistant_id: str, filename: str) -> str:
     return str(dest_path)
 
 
-def extract_text_with_embedanything(file_path: str) -> str:
-    return embed_extractor.extract_text(file_path)
+def extract_text_with_extractanything(file_path: str) -> str:
+    return extract_extractor.extract_text(file_path)
 
 
 # --- Logic ---

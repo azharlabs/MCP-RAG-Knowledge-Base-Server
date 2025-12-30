@@ -32,12 +32,13 @@ from knowledge_base_logic import (
     get_user_by_api_key,
     get_dashboard_metrics,
     get_user_by_id,
-    extract_text_with_embedanything,
+    extract_text_with_extractanything,
 )
 
 from mcp_server import server as mcp_server
 
 app = FastAPI(title="MCP RAG")
+MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(2 * 1024 * 1024)))
 
 # Mount MCP (FastMCP) on the same FastAPI server (single process/port).
 # Primary mount (for dashboard/explicit clients): /mcp/sse
@@ -189,13 +190,19 @@ async def delete_knowledge_base(knowledge_base_id: str, request: Request):
 @app.post("/api/knowledge-base/{knowledge_base_id}/upload")
 async def upload_file_to_knowledge_base(knowledge_base_id: str, request: Request, file: UploadFile = File(...)):
     user = await require_user(request)
+    file.file.seek(0, os.SEEK_END)
+    file_size = file.file.tell()
+    file.file.seek(0)
+    if file_size > MAX_UPLOAD_BYTES:
+        max_mb = MAX_UPLOAD_BYTES / (1024 * 1024)
+        raise HTTPException(status_code=413, detail=f"File too large. Max size is {max_mb:.0f} MB.")
     file_extension = Path(file.filename).suffix or ".dat"
     temp_name = f"temp_{uuid4()}{file_extension}"
     with open(temp_name, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
     try:
-        text = extract_text_with_embedanything(temp_name)
+        text = extract_text_with_extractanything(temp_name)
     except Exception as exc:
         os.remove(temp_name)
         raise HTTPException(status_code=400, detail=f"Failed to extract text: {exc}")
