@@ -38,7 +38,7 @@ from knowledge_base import (
 from mcp_server import server as mcp_server
 
 app = FastAPI(title="MCP RAG")
-MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(2 * 1024 * 1024)))
+MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(5 * 1024 * 1024)))
 
 # Mount MCP (FastMCP) on the same FastAPI server (single process/port).
 # Primary mount (for dashboard/explicit clients): /mcp/sse

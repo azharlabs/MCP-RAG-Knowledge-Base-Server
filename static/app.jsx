@@ -163,7 +163,7 @@
                 'CSV (.csv)',
                 'JSON (.json)'
             ];
-            const maxUploadMb = 2;
+            const maxUploadMb = 5;
             const [notification, setNotification] = useState(null);
             const [confirmDialog, setConfirmDialog] = useState(null);
             const [promptDialog, setPromptDialog] = useState(null);
