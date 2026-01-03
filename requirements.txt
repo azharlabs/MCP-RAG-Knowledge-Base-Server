@@ -12,3 +12,6 @@ fastmcp
 PyYAML
 aiosqlite
 markitdown[all]
+sentence-transformers
+scikit-learn
+tiktoken
