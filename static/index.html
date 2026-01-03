@@ -324,6 +324,7 @@ Rules:
                     system_prompt: default_system_prompt,
                     chunk_size: 1000,
                     overlap: 200,
+                    chunking_method: "fixed",
                     embedding_dimensions: 768,
                     top_k: 5
                 });
@@ -527,6 +528,7 @@ Rules:
                     system_prompt: base.system_prompt || default_system_prompt,
                     chunk_size: base.chunk_size || 1000,
                     overlap: base.overlap || 200,
+                    chunking_method: base.chunking_method || "fixed",
                     embedding_dimensions: base.embedding_dimensions || 768,
                     top_k: base.top_k || 5,
                     hyde_enabled: base.hyde_enabled ?? false,
@@ -556,6 +558,84 @@ Rules:
             const credentialsPerPage = 5;
             const acceptedFileTypes = '.pdf,.docx,.pptx,.xlsx,.md,.txt,.html,.htm,.csv,.json';
             const embeddingDimensionOptions = [768];
+            const chunkingMethods = [
+                {
+                    id: "fixed",
+                    label: "Fixed Chunking",
+                    pros: ["Simple", "Fast", "Predictable"],
+                    cons: ["May break sentences"],
+                    best_uses: ["Quick prototyping"]
+                },
+                {
+                    id: "overlapping",
+                    label: "Overlapping Chunking",
+                    pros: ["Maintains context flow", "Prevents information loss"],
+                    cons: ["More storage", "Potential redundancy"],
+                    best_uses: ["Q&A systems", "RAG pipelines"],
+                    note: "Recommended overlap: 20-25 percent"
+                },
+                {
+                    id: "semantic",
+                    label: "Semantic Chunking",
+                    pros: ["Respects sentence boundaries", "Maintains meaning"],
+                    cons: ["Requires NLP libraries", "Slower than fixed chunking"],
+                    best_uses: ["Chatbots", "Content summarization"]
+                },
+                {
+                    id: "recursive_character",
+                    label: "Recursive Character Chunking",
+                    pros: ["Avoids word splitting", "Finds nearest space"],
+                    cons: ["Recursive overhead", "Variable chunk sizes"],
+                    best_uses: ["Token limit handling", "Precise character control"]
+                },
+                {
+                    id: "agentic",
+                    label: "Agentic Chunking",
+                    pros: ["Task aware", "Highly adaptive"],
+                    cons: ["Requires API calls", "Slower", "Internet dependent"],
+                    best_uses: ["High value documents", "Task specific chunking"]
+                },
+                {
+                    id: "advanced_semantic",
+                    label: "Advanced Semantic Chunking",
+                    pros: ["ML powered semantic grouping", "Excellent topic clustering"],
+                    cons: ["Requires ML libraries", "Slower processing"],
+                    best_uses: ["Topic clustering", "Advanced semantic analysis"]
+                },
+                {
+                    id: "context_enriched",
+                    label: "Context Enriched Chunking",
+                    pros: ["Rich context", "Better understanding"],
+                    cons: ["Larger chunks", "More storage usage"],
+                    best_uses: ["Context heavy Q&A systems"]
+                },
+                {
+                    id: "paragraph",
+                    label: "Paragraph Chunking",
+                    pros: ["Preserves document structure", "Respects author intent"],
+                    cons: ["Variable chunk sizes", "Requires proper formatting"],
+                    best_uses: ["Articles", "Reports", "Documentation"]
+                },
+                {
+                    id: "recursive_sentence",
+                    label: "Recursive Sentence Chunking",
+                    pros: ["Balanced structure", "Sentence aware"],
+                    cons: ["Recursive overhead", "Assumes clear sentence boundaries"],
+                    best_uses: ["Narrative text", "Stories"]
+                },
+                {
+                    id: "token_based",
+                    label: "Token Based Chunking",
+                    pros: ["Precise token control", "Cost optimization"],
+                    cons: ["May break sentences", "Requires proper tokenizer"],
+                    best_uses: ["API token limits", "Cost optimization"]
+                }
+            ];
+            const [chunkingDropdownOpen, setChunkingDropdownOpen] = useState(false);
+            const [hoveredChunkingId, setHoveredChunkingId] = useState(null);
+            const chunkingMenuRef = useRef(null);
+            const selectedChunkingMethod = chunkingMethods.find((method) => method.id === config.chunking_method) || chunkingMethods[0];
+            const hoveredChunkingMethod = chunkingMethods.find((method) => method.id === hoveredChunkingId);
 
             // Editor State
             const [editorOpen, setEditorOpen] = useState(false);
@@ -570,6 +650,18 @@ Rules:
             useEffect(() => {
                 if (config?.id) fetchDocs(config.id);
             }, [config.id]);
+
+            useEffect(() => {
+                if (!chunkingDropdownOpen) return;
+                const handleClickOutside = (event) => {
+                    if (chunkingMenuRef.current && !chunkingMenuRef.current.contains(event.target)) {
+                        setChunkingDropdownOpen(false);
+                        setHoveredChunkingId(null);
+                    }
+                };
+                window.addEventListener("mousedown", handleClickOutside);
+                return () => window.removeEventListener("mousedown", handleClickOutside);
+            }, [chunkingDropdownOpen]);
 
 	            const fetchDocs = async (id) => {
 	                if (!id) return;
@@ -800,6 +892,79 @@ Rules:
                                     <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Overlap</label>
                                     <input type="number" className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
                                         value={config.overlap} onChange={e => setConfig({ ...config, overlap: parseInt(e.target.value) })} />
+                                </div>
+                            </div>
+                            <div className="space-y-2" ref={chunkingMenuRef}>
+                                <label className="block text-xs font-bold text-gray-500 uppercase">Chunking Method</label>
+                                <button
+                                    type="button"
+                                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm flex items-center justify-between hover:border-blue-300"
+                                    onClick={() => {
+                                        const nextOpen = !chunkingDropdownOpen;
+                                        setChunkingDropdownOpen(nextOpen);
+                                        if (nextOpen) {
+                                            setHoveredChunkingId(config.chunking_method || selectedChunkingMethod.id);
+                                        }
+                                    }}
+                                >
+                                    <div className="text-left">
+                                        <div className="text-sm font-medium text-gray-800">{selectedChunkingMethod.label}</div>
+                                        <div className="text-xs text-gray-500">{selectedChunkingMethod.best_uses.join(", ")}</div>
+                                    </div>
+                                    <Icon name={chunkingDropdownOpen ? "chevron-up" : "chevron-down"} size={16} />
+                                </button>
+                                {chunkingDropdownOpen && (
+                                    <div className="relative">
+                                        <div className="mt-2 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+                                            {chunkingMethods.map((method) => (
+                                                <button
+                                                    key={method.id}
+                                                    type="button"
+                                                    onMouseEnter={() => setHoveredChunkingId(method.id)}
+                                                    onMouseLeave={() => setHoveredChunkingId(null)}
+                                                    onClick={() => {
+                                                        setConfig({ ...config, chunking_method: method.id });
+                                                        setChunkingDropdownOpen(false);
+                                                        setHoveredChunkingId(null);
+                                                    }}
+                                                    className={`w-full text-left px-3 py-2 hover:bg-blue-50 ${config.chunking_method === method.id ? "bg-blue-50" : ""}`}
+                                                >
+                                                    <div className="text-sm font-medium text-gray-800">{method.label}</div>
+                                                    <div className="text-[11px] text-gray-500">{method.best_uses.join(", ")}</div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                        {hoveredChunkingMethod && (
+                                            <div className="absolute left-full top-0 ml-3 w-72 bg-gray-900 text-white text-[11px] p-3 rounded-lg shadow-lg">
+                                                <div className="text-sm font-semibold">{hoveredChunkingMethod.label}</div>
+                                                {hoveredChunkingMethod.note && (
+                                                    <div className="text-[11px] text-gray-300 mt-1">{hoveredChunkingMethod.note}</div>
+                                                )}
+                                                <div className="mt-2">
+                                                    <div className="text-[10px] uppercase tracking-wide text-gray-400">Advantages</div>
+                                                    <div className="text-[11px]">{hoveredChunkingMethod.pros.join(", ")}</div>
+                                                </div>
+                                                <div className="mt-2">
+                                                    <div className="text-[10px] uppercase tracking-wide text-gray-400">Key drawback</div>
+                                                    <div className="text-[11px]">{hoveredChunkingMethod.cons.join(", ")}</div>
+                                                </div>
+                                                <div className="mt-2">
+                                                    <div className="text-[10px] uppercase tracking-wide text-gray-400">Best uses</div>
+                                                    <div className="text-[11px]">{hoveredChunkingMethod.best_uses.join(", ")}</div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                                <p className="text-[11px] text-gray-500">Hover over an option to see advantages, key drawback, and best uses.</p>
+                                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-[11px] text-gray-600 space-y-1">
+                                    <div className="text-[11px] text-gray-500">Selected method details</div>
+                                    <div><span className="font-semibold text-gray-700">Advantages:</span> {selectedChunkingMethod.pros.join(", ")}</div>
+                                    <div><span className="font-semibold text-gray-700">Key drawback:</span> {selectedChunkingMethod.cons.join(", ")}</div>
+                                    <div><span className="font-semibold text-gray-700">Best uses:</span> {selectedChunkingMethod.best_uses.join(", ")}</div>
+                                    {selectedChunkingMethod.note && (
+                                        <div><span className="font-semibold text-gray-700">Note:</span> {selectedChunkingMethod.note}</div>
+                                    )}
                                 </div>
                             </div>
                             <div>
