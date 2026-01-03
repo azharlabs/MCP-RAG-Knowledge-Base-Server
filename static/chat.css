@@ -1,0 +1,50 @@
+body {
+  background: radial-gradient(circle at 20% 20%, #f0f7ff 0, #f9fafb 35%, #fff 70%);
+}
+
+.markdown-body {
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3 {
+  font-weight: 700;
+  margin: 0.4rem 0;
+}
+
+.markdown-body p {
+  margin: 0.35rem 0;
+}
+
+.markdown-body code {
+  background: #f1f5f9;
+  padding: 0.15rem 0.35rem;
+  border-radius: 0.35rem;
+  font-size: 0.85rem;
+}
+
+.markdown-body pre {
+  background: #0b1223;
+  color: #e2e8f0;
+  padding: 0.8rem;
+  border-radius: 0.75rem;
+  overflow-x: auto;
+  margin: 0.5rem 0;
+}
+
+.markdown-body ul,
+.markdown-body ol {
+  padding-left: 1.25rem;
+  margin: 0.35rem 0;
+}
+
+.markdown-body blockquote {
+  border-left: 4px solid #3b82f6;
+  padding-left: 0.75rem;
+  color: #334155;
+  margin: 0.5rem 0;
+  background: #eff6ff;
+  border-radius: 0.35rem;
+}
