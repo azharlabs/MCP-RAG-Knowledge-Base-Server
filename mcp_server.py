@@ -2,7 +2,7 @@ import os
 import sys
 from fastmcp import FastMCP, Context
 
-from knowledge_base_logic import (
+from knowledge_base import (
     add_text_to_knowledge_base,
     chat_with_knowledge_base_with_history,
     get_user_by_api_key,

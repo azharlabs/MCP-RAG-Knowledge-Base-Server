@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from knowledge_base_logic import (
+from knowledge_base import (
     KnowledgeBaseConfig,
     KnowledgeBaseCopyRequest,
     ChatRequest,
